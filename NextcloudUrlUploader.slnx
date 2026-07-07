@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/BionicCode.Utilities.Net/BionicCode.Utilities.Net.csproj" Id="24c1aa07-82fe-4d86-9166-5194c7971bc9" />
+  <Project Path="src/NextcloudUrlUploader/NextcloudUrlUploader.csproj" Id="08500e2a-95ca-4199-80b4-2f39b2f1fd5f" />
+</Solution>
