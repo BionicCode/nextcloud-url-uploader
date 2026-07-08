@@ -160,7 +160,7 @@ internal static class RemoteShareBuilder
             subdirectory = DirectoryDescriptor.Empty;
         }
 
-        var baseUrl = new Uri(shareLink.Host);
+        var baseUrl = new Uri($"{shareLink.Scheme}://{shareLink.Host}");
         ArgumentExceptionAdvanced.ThrowIfNullOrWhiteSpace(
             baseUrl.OriginalString,
             $"Invalid argument '{nameof(shareLink)}'. No base URL found.",
