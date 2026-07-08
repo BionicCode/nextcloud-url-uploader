@@ -2,12 +2,16 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Reflection;
+using System.Text.Json;
 using BionicCode.Utilities.Net;
 
 internal sealed class UploadCommand
 {
     public UploadCommand(
-        Uri sourceUrl,
+        IEnumerable<Uri> sourceUrls,
+        int sourceUrlCount,
         Uri shareLink,
         DirectoryDescriptor subfolder,
         bool isOverwriteEnabled,
@@ -15,33 +19,81 @@ internal sealed class UploadCommand
     {
         ArgumentNullException.ThrowIfNull(shareLink);
         ArgumentNullException.ThrowIfNull(password);
-        RemoteShare remoteShare = RemoteShareBuilder.Create(shareLink, new Credentials(password, string.Empty), subfolder);
+        _remoteShare = RemoteShareBuilder.Create(shareLink, new Credentials(password, string.Empty), subfolder);
         FileUploader = new FileUploader();
         FileDownloader = new FileDownloader();
-        SourceUrl = sourceUrl;
+        SourceUrls = sourceUrls;
+        SourceUrlCount = sourceUrlCount;
         IsOverwriteEnabled = isOverwriteEnabled;
     }
 
-    public async Task ExecuteAsync()
+    public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        // TODO::Create UploadInfo from _remoteShare and other parameters (e.g., source URL, overwrite flag).
-        Stream fileStream = await FileDownloader.DownloadFileAsync(UploadInfo.SourceUrl, s_httpClient).ConfigureAwait(false);
-        if (fileStream.Length == 0)
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (UploadInfo == default)
         {
-            throw new InvalidOperationException("The downloaded file is empty.");
+            UploadInfo = await UploadInfoBuilder.CreateAsync(_remoteShare, Mode.FileDrop, IsOverwriteEnabled, cancellationToken).ConfigureAwait(false);
         }
-        FileUploader.UploadAsync
+
+        int fileCount = 0;
+        int failedCount = 0;
+        foreach (Uri sourceUrl in SourceUrls)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            fileCount++;
+            Stream fileStream = await FileDownloader.DownloadFileAsync(sourceUrl, s_httpClient, cancellationToken).ConfigureAwait(false);
+            if (fileStream.Length == 0)
+            {
+                throw new InvalidOperationException("The downloaded file is empty.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            HttpResponseMessage response = await FileUploader.UploadAsync(fileStream, UploadInfo, s_httpClient, cancellationToken).ConfigureAwait(false);
+
+            failedCount = ReportProgress(fileCount, failedCount, sourceUrl, response);
+        }
+
+        Console.WriteLine();
+        string uploadSummary = $"Upload completed. {fileCount - failedCount} of {fileCount} files uploaded successfully, {failedCount} files failed.";
+        uploadSummary.WriteLineToConsole(ConsoleColor.Blue);
     }
 
-    public UploadInfo UploadInfo { get; }
+    private int ReportProgress(int fileCount, int failedCount, Uri sourceUrl, HttpResponseMessage response)
+    {
+        ConsoleColor messageHeadForeground = ConsoleColor.Yellow;
+        ConsoleColor messageBodyForeground = ConsoleColor.Green;
+        if (!response.IsSuccessStatusCode)
+        {
+            failedCount++;
+            messageBodyForeground = ConsoleColor.Red;
+        }
+
+        string messageHead = $"File {fileCount} of {SourceUrlCount}: ";
+        string fileName = sourceUrl.Segments[^1];
+        string messageBody = response.IsSuccessStatusCode
+            ? $"{fileName}' uploaded successfully to '{UploadInfo.UploadManifest.RemoteShare.DestinationUrl}'."
+            : $"{fileName}' upload failed with status code: {response.StatusCode}: {response.ReasonPhrase}";
+
+        messageHead.WriteToConsole(messageHeadForeground);
+        messageBody.WriteLineToConsole(messageBodyForeground);
+        return failedCount;
+    }
+
+    public UploadInfo UploadInfo { get; private set; }
     public FileUploader FileUploader { get; }
     public FileDownloader FileDownloader { get; }
-    public Uri SourceUrl { get; }
+    public IEnumerable<Uri> SourceUrls { get; }
+    public int SourceUrlCount { get; }
     public bool IsOverwriteEnabled { get; }
 
     private static readonly HttpClient s_httpClient = new();
     private readonly RemoteShare _remoteShare;
 }
+
+internal readonly record struct CommandResult(bool IsSuccessful, string Message);
 
 internal sealed class FileUploader
 {
@@ -70,6 +122,8 @@ internal sealed class FileUploader
             requestMessage.Headers.Add("If-None-Match", "*");
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+
         // TODO::Report progress of the upload operation using a progress reporting mechanism.
         // But at least provide terminal feedback.
         return await httpClient.SendAsync(requestMessage, cancellationToken).ConfigureAwait(false);
@@ -78,12 +132,14 @@ internal sealed class FileUploader
 
 internal sealed class FileDownloader
 {
-    public static async Task<Stream> DownloadFileAsync(Uri sourceUrl, HttpClient httpClient)
+    public static async Task<Stream> DownloadFileAsync(Uri sourceUrl, HttpClient httpClient, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sourceUrl);
         ArgumentNullException.ThrowIfNull(httpClient);
 
-        Stream fileStream = await httpClient.GetStreamAsync(sourceUrl).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        Stream fileStream = await httpClient.GetStreamAsync(sourceUrl, cancellationToken).ConfigureAwait(false);
         return fileStream;
     }
 }
@@ -132,7 +188,6 @@ internal readonly record struct UploadManifest(
 
 internal readonly record struct UploadInfo(
     UploadManifest UploadManifest,
-    Uri SourceUrl,
     bool IsOverwriteEnabled);
 
 internal readonly record struct Credentials(string Password,
@@ -155,8 +210,86 @@ internal enum Mode
     FileDrop,
 }
 
-internal sealed class UploadManifestBuilder()
+internal sealed class UploadInfoBuilder()
 {
     // TODO::Check whether JSON manifest file and related entry exist and create UploadManifest instance from it.
     // If not, create a new manifest file and/or entry from the provided command arguments.
+    public static async Task<UploadInfo> CreateAsync(RemoteShare remoteShare, Mode mode, bool isOverwriteEnabled, CancellationToken cancellationToken)
+    {
+        ArgumentNullExceptionAdvanced.ThrowIfDefault(remoteShare);
+        ArgumentExceptionAdvanced.ThrowIfEnumIsNotDefined<Mode>(mode);
+        ArgumentExceptionAdvanced.ThrowIfEnumEqualsAny<Mode>(mode, new Mode[] { Mode.Undefined }, nameof(mode), $"Invalid argument '{nameof(mode)}'. The value '{mode}' is not allowed.");
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        (bool success, UploadManifest manifest) = await GetManifestFromFileAsync(cancellationToken).ConfigureAwait(false);
+        if (!success)
+        {
+            manifest = new UploadManifest(remoteShare, mode, Enumerable.Empty<FileExtension>());
+            await SaveManifestToFileAsync(manifest, cancellationToken).ConfigureAwait(false);
+        }
+
+        return new UploadInfo(manifest, isOverwriteEnabled);
+    }
+
+    private static async Task<(bool Success, UploadManifest Manifest)> GetManifestFromFileAsync(CancellationToken cancellationToken)
+    {
+        if (!ApplicationInfo.ManifestFileDescriptor.TryOpenForAsyncRead(out FileStream manifestFile))
+        {
+            return (false, default);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await using (manifestFile)
+        {
+            UploadManifest manifestJson = await JsonSerializer.DeserializeAsync<UploadManifest>(manifestFile, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            return (true, manifestJson);
+        }
+    }
+
+    private static async Task SaveManifestToFileAsync(UploadManifest manifest, CancellationToken cancellationToken)
+    {
+        ArgumentNullExceptionAdvanced.ThrowIfDefault(manifest);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await using Stream manifestFile = ApplicationInfo.ManifestFileDescriptor.OpenForAsyncWrite(isOpenOrCreateEnabled: true);
+        await JsonSerializer.SerializeAsync(manifestFile, manifest, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+}
+
+internal static class ApplicationInfo
+{
+    private static readonly Assembly s_assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
+    private const string SourcesBatchFileName = "sources.txt";
+    private const string ManifestFileName = "upload_manifest.json";
+
+    private static string? s_version;
+    public static string Version => s_version ??= GetAppVersion();
+
+    private static string? s_name;
+    public static string Name => s_name ??= s_assembly.GetName().Name ?? "NextcloudUrlUploader___";
+    public static FileSystemPathDescriptor SourcesBatchFileDescriptor = new(SourcesBatchFileName, new DirectoryDescriptor(Environment.CurrentDirectory));
+    public static FileSystemPathDescriptor ManifestFileDescriptor = new(ApplicationInfo.ManifestFileName, new DirectoryDescriptor(Environment.CurrentDirectory));
+
+    private static string GetAppVersion()
+    {
+        // Prefer AssemblyInformationalVersion for product display
+        string? infoVer = s_assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (!string.IsNullOrEmpty(infoVer))
+        {
+            return infoVer;
+        }
+
+        // Fallback to FileVersion / AssemblyName version
+        string? fileVer = FileVersionInfo.GetVersionInfo(s_assembly.Location).ProductVersion;
+        if (!string.IsNullOrEmpty(fileVer))
+        {
+            return fileVer;
+        }
+
+        return s_assembly.GetName().Version?.ToString() ?? "0.0.0";
+    }
 }

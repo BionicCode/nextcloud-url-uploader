@@ -19,6 +19,38 @@ public static class FileHelpers
     };
 
     /// <summary>
+    /// Provides default options for creating a new file with read and write access, no sharing, and asynchronous
+    /// sequential operations.
+    /// </summary>
+    /// <remarks>These options configure file streams to allow both reading and writing, prevent other
+    /// processes from accessing the file simultaneously, and optimize for asynchronous, sequential access patterns. Use
+    /// this instance when opening files that require exclusive access and efficient sequential I/O.
+    /// <para/>If the file already exists, an exception is thrown.</remarks>
+    public static readonly FileStreamOptions ReadWriteCreateOptions = new()
+    {
+        Mode = FileMode.CreateNew,
+        Access = FileAccess.ReadWrite,
+        Share = FileShare.None,
+        Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+    };
+
+    /// <summary>
+    /// Provides default options for opening an existing file with read and write access, no sharing, and asynchronous
+    /// sequential operations.
+    /// </summary>
+    /// <remarks>These options configure file streams to allow both reading and writing, prevent other
+    /// processes from accessing the file simultaneously, and optimize for asynchronous, sequential access patterns. Use
+    /// this instance when opening files that require exclusive access and efficient sequential I/O.
+    /// <para/>If the file doesn't exist, an exception is thrown.</remarks>
+    public static readonly FileStreamOptions ReadWriteOptions = new()
+    {
+        Mode = FileMode.Open,
+        Access = FileAccess.ReadWrite,
+        Share = FileShare.None,
+        Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+    };
+
+    /// <summary>
     /// Provides preconfigured options for opening a file for asynchronous, sequential read access.
     /// </summary>
     /// <remarks>These options are suitable for scenarios where a file is read from start to finish in a
@@ -29,6 +61,49 @@ public static class FileHelpers
         Mode = FileMode.Open,
         Access = FileAccess.Read,
         Share = FileShare.Read,
+        Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+    };
+
+    /// <summary>
+    /// Provides preconfigured options for crating a new file for asynchronous, sequential read access.
+    /// </summary>
+    /// <remarks>These options are suitable for scenarios where a file is read from start to finish in a
+    /// single pass, such as streaming or processing large files. The file is created in read-only mode and shared for
+    /// reading by other processes and is expected to throw an exception if it already exists.</remarks>
+    public static readonly FileStreamOptions ReadOnlyCreateOptions = new()
+    {
+        Mode = FileMode.CreateNew,
+        Access = FileAccess.Read,
+        Share = FileShare.Read,
+        Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+    };
+
+    /// <summary>
+    /// Provides preconfigured options for crating a new file for asynchronous, sequential read access and for overwriting existing files.
+    /// </summary>
+    /// <remarks>These options are suitable for scenarios where a file is read from start to finish in a
+    /// single pass, such as streaming or processing large files. The file is created in read-only mode and shared for
+    /// reading by other processes and is expected to overwrite an existing file.</remarks>
+    public static readonly FileStreamOptions ReadOnlyCreateOrOverwriteOptions = new()
+    {
+        Mode = FileMode.Create,
+        Access = FileAccess.Read,
+        Share = FileShare.Read,
+        Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+    };
+
+    /// <summary>
+    /// Provides preconfigured options for opening an existing file with write access, exclusive sharing, and asynchronous
+    /// sequential operations.
+    /// </summary>
+    /// <remarks>Use this instance when opening an existing file to ensure the file is opened exclusively for
+    /// writing, with asynchronous and sequential access optimizations. If the file doesn't exist, an
+    /// exception is thrown.</remarks>
+    public static readonly FileStreamOptions WriteOnlyOptions = new()
+    {
+        Mode = FileMode.Open,
+        Access = FileAccess.Write,
+        Share = FileShare.None,
         Options = FileOptions.Asynchronous | FileOptions.SequentialScan
     };
 

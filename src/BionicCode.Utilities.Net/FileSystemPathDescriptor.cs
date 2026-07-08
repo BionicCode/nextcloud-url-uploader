@@ -1,6 +1,7 @@
 ﻿namespace BionicCode.Utilities.Net;
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using SystemIoPath = System.IO.Path;
 
 /// <summary>
@@ -110,6 +111,101 @@ public sealed class FileSystemPathDescriptor : FileDescriptor, IEquatable<FileSy
 
         string newPath = SystemIoPath.Join(newLocation, Name);
         return new FileSystemPathDescriptor(newPath);
+    }
+
+    /// <summary>
+    /// Opens the file for asynchronous reading. If the file does not exist and <paramref name="isOpenOrCreateEnabled"/> is <see langword="true"/>, it will be created.
+    /// </summary>
+    /// <param name="isOpenOrCreateEnabled"><see langword="true"/> indicating to open the file if it exists or create it if it doesn't exist. 
+    /// <see langword="false"/> to throw an exception if the file doesn't exist.</param>
+    /// <returns>The <see cref="FileStream"/> for the file represented by this instance.</returns>
+    /// <exception cref="FileNotFoundException">Thrown if the file does not exist and <paramref name="isOpenOrCreateEnabled"/> is <see langword="false"/>.</exception>
+    public FileStream OpenForAsyncRead(bool isOpenOrCreateEnabled) => IsExisting
+        ? new FileStream(Path, FileHelpers.ReadOnlyOptions)
+        : isOpenOrCreateEnabled
+            ? new FileStream(Path, FileHelpers.ReadOnlyCreateOrOverwriteOptions)
+            : throw new FileNotFoundException($"File not found: {Path}");
+
+    /// <summary>
+    /// Tries to open the file for reading asynchronously.
+    /// </summary>
+    /// <param name="fileStream"><The <see cref="FileStream"/> for the file represented by this instance.</param>
+    /// <returns><see langword="true"/> if the file was successfully opened; otherwise, <see langword="false"/>.</returns>
+    public bool TryOpenForAsyncRead([NotNullWhen(true)] out FileStream fileStream)
+    {
+        fileStream = null!;
+
+        if (IsExisting)
+        {
+            fileStream = new FileStream(Path, FileHelpers.ReadOnlyOptions);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Opens the file for asynchronous writing. If the file does not exist and <paramref name="isOpenOrCreateEnabled"/> is <see langword="true"/>, it will be created.
+    /// </summary>
+    /// <param name="isOpenOrCreateEnabled"><see langword="true"/> indicating to open the file if it exists or create it if it doesn't exist. 
+    /// <see langword="false"/> to throw an exception if the file doesn't exist.</param>
+    /// <returns>The <see cref="FileStream"/> for the file represented by this instance.</returns>
+    /// <exception cref="FileNotFoundException">Thrown if the file does not exist and <paramref name="isOpenOrCreateEnabled"/> is <see langword="false"/>.</exception>
+    public FileStream OpenForAsyncWrite(bool isOpenOrCreateEnabled) => IsExisting
+        ? new FileStream(Path, FileHelpers.WriteOnlyOptions)
+        : isOpenOrCreateEnabled
+            ? new FileStream(Path, FileHelpers.WriteOnlyCreateOrOverwriteOptions)
+            : throw new FileNotFoundException($"File not found: {Path}");
+
+    /// <summary>
+    /// Tries to open the file for asynchronous writing.
+    /// </summary>
+    /// <param name="fileStream"><The <see cref="FileStream"/> for the file represented by this instance.</param>
+    /// <returns><see langword="true"/> if the file was successfully opened; otherwise, <see langword="false"/>.</returns>
+    public bool TryOpenForAsyncWrite([NotNullWhen(true)] out FileStream fileStream)
+    {
+        fileStream = null!;
+
+        if (IsExisting)
+        {
+            fileStream = new FileStream(Path, FileHelpers.WriteOnlyOptions);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Opens the file for reading and writing asynchronously. Optionally, if the file does not exist, it will be created.
+    /// </summary>
+    /// <remarks>If the file doesn't exist and <paramref name="isOpenOrCreateEnabled"/> is <see langword="true"/>, 
+    /// the file will be created; otherwise, an exception will be thrown.</remarks>
+    /// <param name="isOpenOrCreateEnabled"><see langword="true"/> indicating to open the file if it exists or create it if it doesn't exist.
+    /// <see langword="false"/> to throw an exception if the file doesn't exist.</param>
+    /// <returns>The <see cref="FileStream"/> for the file represented by this instance.</returns>
+    /// <exception cref="FileNotFoundException">Thrown if the file does not exist and <paramref name="isOpenOrCreateEnabled"/> is <see langword="false"/>.</exception>
+    public FileStream OpenForAsyncReadWrite(bool isOpenOrCreateEnabled) => IsExisting
+        ? new FileStream(Path, FileHelpers.ReadWriteOptions)
+        : isOpenOrCreateEnabled
+            ? new FileStream(Path, FileHelpers.ReadWriteCreateOrOverwriteOptions)
+            : throw new FileNotFoundException($"File not found: {Path}");
+
+    /// <summary>
+    /// Tries to open the file for asynchronous reading and writing.
+    /// </summary>
+    /// <param name="fileStream"><The <see cref="FileStream"/> for the file represented by this instance.</param>
+    /// <returns><see langword="true"/> if the file was successfully opened; otherwise, <see langword="false"/>.</returns>
+    public bool TryOpenForAsyncReadWrite([NotNullWhen(true)] out FileStream fileStream)
+    {
+        fileStream = null!;
+
+        if (IsExisting)
+        {
+            fileStream = new FileStream(Path, FileHelpers.ReadWriteOptions);
+            return true;
+        }
+
+        return false;
     }
 
     public FileSystemPathDescriptor Combine(bool isImplicitRootAllowed, params DirectoryDescriptor[] precedingLocationSegments)
