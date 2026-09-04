@@ -143,26 +143,6 @@
       "lifecycle_policy": "enforce",
       "uniqueness_policy": "none",
       "managed_scope": "whole_file"
-    },
-    {
-      "source_repo": "BionicCode/backlog-driven-engineering-workflow",
-      "source_ref": "release/v1",
-      "source_glob": "src/backlog-workflow/managed/*",
-      "target_directory": "project-backlog/",
-      "direction": "source_to_target",
-      "lifecycle_policy": "enforce",
-      "uniqueness_policy": "none",
-      "managed_scope": "whole_file"
-    },
-    {
-      "source_repo": "BionicCode/backlog-driven-engineering-workflow",
-      "source_ref": "release/v1",
-      "source_glob": "src/backlog-workflow/seed/*",
-      "target_directory": "project-backlog/",
-      "direction": "source_to_target",
-      "lifecycle_policy": "seed_once",
-      "uniqueness_policy": "none",
-      "managed_scope": "whole_file"
     }
   ]
 }
