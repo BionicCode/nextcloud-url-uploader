@@ -1,13 +1,16 @@
 ---
-Version: 1
+Version: 2
 Created: 2026-05-25T23:40:38+00:00
-Updated: 2026-05-25T23:40:38+00:00
+Updated: 2026-08-27T20:54:30+00:00
 Author: BionicCode
 ---
 <!-- doc-metadata-presentation:start -->
+[<b>View Commit</b>](https://github.com/BionicCode/nextcloud-url-uploader/commit/9fe2247ba87185160ca391be63f230d5bc52e993)
+
 <details>
 <summary>Change History</summary>
 
+- Updated: <b>2026-08-27T20:54:30+00:00</b> | Author: <b>BionicCode</b> | Changes: [<b>View Commit</b>](https://github.com/BionicCode/nextcloud-url-uploader/commit/9fe2247ba87185160ca391be63f230d5bc52e993)
 
 </details>
 
